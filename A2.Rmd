@@ -1,0 +1,181 @@
+---
+title: "Assignment 2"
+output:
+  html_document:
+    df_print: paged
+author:  Jiajie Yuan; Yuan Tian
+---
+
+# Introduction
+You should use this code as part of your Assignment 2 assignment. You will re-save this Notebook under a different name and modify it to complete the assignment. For example, you should delete all of the text in this section and replace it with your own introduction. 
+
+The first chunk calls the packages that you will need in this assignment.
+
+The second code chunk automatically retrieves the latest data from the World Development Indicators database, for use in the assignment.
+
+## Step 1: library calls to load packages
+
+```{r, warning=FALSE, message=FALSE}  
+library(tidyverse)
+library(leaflet)
+library(WDI)
+```
+
+## Step 2:  Call package `WDI` to retrieve most updated figures available.
+
+In this assignment, we will fetch ten data series from the WDI:
+
+|Tableau Name	|WDI Series
+|----------------|:-----------------|
+|Birth Rate	|SP.DYN.CBRT.IN|
+|Infant Mortality Rate	|SP.DYN.IMRT.IN|
+|Internet Usage	|IT.NET.USER.ZS|
+|Life Expectancy (Total)	|SP.DYN.LE00.IN|
+|Forest Area (% of land) | AG.LND.FRST.ZS |
+|Mobile Phone Usage	|IT.CEL.SETS.P2|
+|Population Total	|SP.POP.TOTL|
+|International Tourism receipts (current US$)|ST.INT.RCPT.CD|
+|Import value index (2000=100) | TM.VAL.MRCH.XD.WD|
+|Export value index (2000=100) | TX.VAL.MRCH.XD.WD|
+
+
+The next code chunk will call the WDI API and fetch the years 1998 through 2018, as available. You will find that only a few variables have data for 2018. The dataframe will also contain the longitude and latitude of the capital city in each country.
+
+*Note* This notebook will take approximately 2 minutes to run. The WDI call is time-consuming as is the process of knitting the file. Be patient.
+
+The World Bank uses a complex, non-intuitive scheme for naming variables. For example, the Birth Rate series is called `SP.DYN.CBRT,IN`.  The code assigns variables names that are more intuitive than the codes assigned by the World Bank, and converts the geocodes from factors to numbers. 
+
+In your code, you will use the data frame called `countries`.
+
+```{r}
+birth <- "SP.DYN.CBRT.IN"
+infmort <- "SP.DYN.IMRT.IN"
+net <-"IT.NET.USER.ZS"
+lifeexp <- "SP.DYN.LE00.IN"
+forest <- "AG.LND.FRST.ZS"
+mobile <- "IT.CEL.SETS.P2"
+pop <- "SP.POP.TOTL"
+tour <- "ST.INT.RCPT.CD"
+import <- "TM.VAL.MRCH.XD.WD"
+export <- "TX.VAL.MRCH.XD.WD"
+
+# create a vector of the desired indicator series
+indicators <- c(birth, infmort, net, lifeexp, forest,
+                mobile, pop, tour, import, export)
+
+countries <- WDI(country="all", indicator = indicators, 
+     start = 1998, end = 2018, extra = TRUE)
+
+## rename columns for each of reference
+countries <- rename(countries, birth = SP.DYN.CBRT.IN, 
+       infmort = SP.DYN.IMRT.IN, net  = IT.NET.USER.ZS,
+       lifeexp = SP.DYN.LE00.IN, forest = AG.LND.FRST.ZS,
+       mobile = IT.CEL.SETS.P2, pop = SP.POP.TOTL, 
+       tour = ST.INT.RCPT.CD, import = TM.VAL.MRCH.XD.WD,
+       export = TX.VAL.MRCH.XD.WD)
+
+# convert geocodes from factors into numerics
+
+countries$lng <- as.numeric(as.character(countries$longitude))
+countries$lat <- as.numeric(as.character(countries$latitude))
+
+# Remove groupings, which have no geocodes
+countries <- countries %>%
+   filter(!is.na(lng))
+```
+
+## A Glimpse of the new dataframe
+
+```{r}
+glimpse(countries)
+```
+
+#Graphing and Comments
+
+Beyond this line, you will insert your original code, following the instructions in the assignment. 
+
+## Plot from Phase 1
+Firstly, we filter the data and only keep the variables we need in this assignment. Then we clean the data and change data type to prepare for the further visualization.
+
+Specifically, we need to format the variable “Year” to standard form like "%d/%m/%Y" in order to filter different years. We also need to remove “%” from the variables “Internet.Usage” and “Health.Exp...GDP” for calculation.
+It is obvious that we have three major graphs we need to plot, thus, we decided to separate three plots and finally put them together into one graph.
+
+We used ggplot2 to plot the trends in “Internet.Usage” , “Health.Exp...GDP” and “CO2.Emissions” for five different countries. In order to show trends, we chose to use line added points. In order to show comparation between different countries, we chose to use facet_wrap. Later, we adjusted the x-axis scales for better showing. 
+Finally, we combined three separated plots together. 
+
+```{r}
+library(ggpubr)
+library(data.table)
+#load data
+a=getwd()
+setwd(a)
+World.Indicators <- read.csv("World Indicators.csv")
+head(World.Indicators)
+
+#choose useful columns
+useful_variables=World.Indicators[,c("CO2.Emissions","Internet.Usage","Health.Exp...GDP","Country","Year")]
+useful_variables=useful_variables%>%filter(Country=="United States"|Country=="Brazil"|Country=="Russian Federation"|Country=="India"|Country=="China")
+
+#choose years 
+useful_variables$Year=year(strptime(useful_variables$Year,format = "%d/%m/%Y"))
+
+#remove % and transform variables to as numeric
+useful_variables$Internet.Usage=lapply(useful_variables$Internet.Usage, function(x) as.numeric(sub("%", "", x))/100)
+useful_variables$Health.Exp...GDP=lapply(useful_variables$Health.Exp...GDP,function(x) as.numeric(sub("%","",x))/100)
+useful_variables$Internet.Usage=as.numeric(useful_variables$Internet.Usage)
+useful_variables$Health.Exp...GDP=as.numeric(useful_variables$Health.Exp...GDP)
+
+head(useful_variables)
+
+#plot three graphs separately
+d1=ggplot(data=useful_variables,aes(y=Internet.Usage,x=Year))+geom_line()+geom_point()+scale_x_continuous(breaks=seq(2000, 2012, 5))+facet_wrap(~Country,scales ="free_x",nrow=1)+ggtitle("Internet Usage, CO2 Emissions and Health Exp % GDP for five countries")+theme(plot.title = element_text(hjust = 0.5))+theme(
+  plot.title = element_text(face="bold", size=14))
+d2=ggplot(data=useful_variables,aes(y=CO2.Emissions,x=Year))+geom_line()+geom_point()+scale_x_continuous(breaks=seq(2000, 2012, 5))+facet_wrap(~Country,scales ="free_x",nrow=1)
+d3=ggplot(data=useful_variables,aes(y=Health.Exp...GDP,x=Year))+geom_line()+geom_point()+scale_x_continuous(breaks=seq(2000, 2012, 5))+facet_wrap(~Country,scales ="free_x",nrow=1)
+
+#combine three plots together
+ggarrange(d1,d2,d3,ncol=1,nrow=3) 
+```
+## World map showing a variable in 1998
+
+We chose the interesting variable birth, then we filter the data of that for 1998 and delete all the NAs
+
+After that we make the leaflet plot, we firstly choose the title 'CartoDB', locate circles by using latitude and longtitude of each country’s capital.
+Secondly, we make a color gradient to show the different birth rate, darker color means higher rate.
+Moreover, we add labels on the cirles to show country name and birth rate value.
+Finally, we add the legend of birth rate for readers identify the distribution of birth more clearly.
+
+From the plot, we can see that in 1998, countries of Africa have the most oveall birth rate, some countries in Asia also 
+have high birth rates. In contrast, countries in Europe, North America and Oceania have lower birth rates. It is probably because developing countries tend to have higher birth rates than develop ones.
+
+```{r}
+countries98= countries %>% filter(year == 1998) %>%  filter(!is.na(birth)) 
+pal <- colorNumeric(palette = "Oranges", domain = countries98$birth,  reverse = FALSE) 
+
+countries98 %>% 
+  leaflet() %>% 
+  addProviderTiles("CartoDB") %>% 
+  addCircleMarkers( lng = ~lng, lat = ~lat,radius = 2,color = ~pal(birth),label = ~paste("Country: ",country,"Birth: ",birth))%>%
+  addLegend(pal = pal, values = countries98$birth, title = "Birth Rate of 1998", position = "topright")
+```
+
+
+
+## World map showing the same variable recently
+
+Then we fiter the data of birth for 2017 and delte al the NAs.
+
+We use the same framework to make the leaflet plot as for 1998 data(same title, circles location, color gradient, lables and legends) In this case, we can compare the two plots clearly.
+
+After comparison, we notice that almost all the colors are lighter in 2017, which means the worldwide birth rate decrease after 20 years. However, countries in Africa still have the most color density with highest birth rate，even though most of them have experienced large decrease of birth rate.
+
+```{r}
+countries17= countries %>% filter(year == 2017) %>%  filter(!is.na(birth)) 
+pal <- colorNumeric(palette = "Oranges", domain = countries17$birth,  reverse = FALSE) 
+
+countries17 %>% 
+  leaflet() %>% 
+  addProviderTiles("CartoDB") %>% 
+  addCircleMarkers( lng = ~lng, lat = ~lat,radius = 2,color = ~pal(birth),label = ~paste("Country: ",country,"Birth: ",birth))%>%
+  addLegend(pal = pal, values = countries98$birth, title = "Birth Rate of 2017", position = "topright")
+```
